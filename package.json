@@ -23,7 +23,7 @@
     "react-dom": "18.2.0"
   },
   "devDependencies": {
-    "@types/node": "18.11.9",
+    "@types/node": "18.19.59",
     "@types/react": "18.0.25",
     "autoprefixer": "10.4.13",
     "postcss": "8.4.18",
