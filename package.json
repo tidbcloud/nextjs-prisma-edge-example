@@ -17,7 +17,7 @@
     "prisma:proxy": "prisma generate --data-proxy"
   },
   "dependencies": {
-    "@prisma/client": "4.6.1",
+    "@prisma/client": "4.16.2",
     "next": "13.1.0",
     "react": "18.2.0",
     "react-dom": "18.2.0"
