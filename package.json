@@ -6,6 +6,9 @@
   "license": "Apache-2.0",
   "author": "",
   "main": "index.js",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next",
     "build": "next build",
@@ -18,7 +21,7 @@
   },
   "dependencies": {
     "@prisma/client": "4.6.1",
-    "next": "13.1.0",
+    "next": "15.5.28",
     "react": "18.2.0",
     "react-dom": "18.2.0"
   },
