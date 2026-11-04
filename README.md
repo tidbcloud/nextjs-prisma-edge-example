@@ -16,13 +16,13 @@ This sample application shows how you can work with TiDB Cloud and edge function
 ![tidbcloud-connect.png](img/connect.png)
 
 4. Connect to your serverless tier cluster and create a database named edge_function. This application will build on this database.
-5. Create a separate database setup user with privileges limited to `edge_function` and the operations required by the checked-in migrations, Prisma's migration history table, and seeding. Do not use the cluster administrator account for application deployments.
+5. Create a setup user with only the privileges needed to migrate and seed `edge_function`. Keep this account separate from the read-only application user described below.
 
 ## Initialize the database
 
-Complete this step before deploying locally, on Vercel, or on Netlify. Web builds generate Prisma Client and compile the app; they do not migrate or seed the database.
+Initialize a new database before deploying locally, on Vercel, or on Netlify. Web builds only generate Prisma Client and compile the app.
 
-1. Fork this repository, clone it, and install the locked dependencies **before** supplying database credentials:
+1. Fork and clone this repository, then install dependencies before supplying database credentials:
 
    ```sh
    git clone https://github.com/${user_name}/nextjs-prisma-edge-example.git
@@ -30,23 +30,23 @@ Complete this step before deploying locally, on Vercel, or on Netlify. Web build
    npm ci --ignore-scripts
    ```
 
-2. In a trusted local environment or a separate approved database job, set `MIGRATE_DATABASE_URL` to the setup user's direct TiDB connection string. Review the dependencies and migration SQL before supplying this credential. Run initialization once for a new database:
+2. On a trusted machine or in a separate migration job, run setup with the setup user's direct TiDB connection string:
 
    ```sh
    export MIGRATE_DATABASE_URL='mysql://SETUP_USER:PASSWORD@HOST:PORT/edge_function?sslaccept=strict'
-   npm run db:setup
+   npm run prisma:setup
    unset MIGRATE_DATABASE_URL
    ```
 
-   `db:setup` generates the direct database client, applies migrations, and seeds the quotes. Seeding appends data, so do not repeat it on an initialized database. For subsequent schema changes, run only `npm run prisma:migrate` in the same trusted environment with the setup credential. Retain the command output and the actor and commit information in the database job's logs; do not log connection strings.
+   This generates the direct database client, applies migrations, and seeds the quotes. Run it only once: seeding appends data. For later schema changes, supply the setup credential and run only `npm run prisma:migrate`. Retain migration output with the commit and operator, without logging credentials.
 
-3. Create a different database user for the application's proxy connection. The application only reads quotes, so grant it `SELECT` on `edge_function.Quote`, with no write or schema privileges. For example, after creating the user with its own password:
+3. Create a separate user for the application's proxy connection. After creating it with its own password, grant only the read access the app needs:
 
    ```sql
    GRANT SELECT ON edge_function.Quote TO 'RUNTIME_USER'@'%';
    ```
 
-   Use the actual TiDB username, including its cluster prefix where applicable. Check its effective grants to ensure it has no broader privileges from other roles.
+   Replace `RUNTIME_USER` with the actual TiDB username, including its cluster prefix where applicable. Check that it has no write or schema privileges through other grants or roles.
 
 ## Set up Prisma Data Proxy
 
@@ -149,6 +149,6 @@ Now wait for the deployment to complete, then you can view your site on the defa
 
 ## Existing deployments
 
-Remove `MIGRATE_DATABASE_URL` and any other direct setup credentials from all hosting scopes, including production, previews, and development. Updating this repository does not remove environment variables already saved in Vercel or Netlify. Rotate any setup credential previously supplied to hosting, update the proxy to use the read-only runtime user, and redeploy.
+Before the next deployment, remove `MIGRATE_DATABASE_URL` and other setup credentials from every Vercel or Netlify environment. Repository changes do not delete saved hosting variables. Rotate previously hosted setup credentials and configure the proxy with the read-only application user.
 
-Dependency updates require manual review. Enable branch protection with a required approval and the CI build checks before merging, and restrict deployment and database job access to the maintainers who need it. Preview deployments should use a separate database and proxy connection.
+Review dependency updates manually. Require PR approval and the CI build checks through branch protection. Limit deployment and migration access to maintainers, and use a separate database and proxy connection for previews.
