@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, starter]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.command }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        command: [vercel-build, netlify-build]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run ${{ matrix.command }}
+        env:
+          # The build validates the URL format but does not connect to a database.
+          DATABASE_URL: prisma://example.invalid/?api_key=build-only-placeholder
+          NEXT_TELEMETRY_DISABLED: "1"

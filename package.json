@@ -13,8 +13,9 @@
     "dev": "next",
     "build": "next build",
     "start": "next start",
-    "vercel-build": "npm run prisma:migrate && npm run prisma:seed && npm run prisma:proxy && npm run build",
-    "netlify-build": "npm run prisma:migrate && npm run prisma:seed && npm run prisma:proxy && npm run build",
+    "vercel-build": "npm run prisma:proxy && npm run build",
+    "netlify-build": "npm run prisma:proxy && npm run build",
+    "prisma:setup": "prisma generate && npm run prisma:migrate && npm run prisma:seed",
     "prisma:migrate": "DATABASE_URL=\"$MIGRATE_DATABASE_URL\" prisma migrate deploy",
     "prisma:seed": "DATABASE_URL=\"$MIGRATE_DATABASE_URL\"  prisma db seed",
     "prisma:proxy": "prisma generate --data-proxy"

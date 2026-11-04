@@ -16,6 +16,37 @@ This sample application shows how you can work with TiDB Cloud and edge function
 ![tidbcloud-connect.png](img/connect.png)
 
 4. Connect to your serverless tier cluster and create a database named edge_function. This application will build on this database.
+5. Create a setup user with only the privileges needed to migrate and seed `edge_function`. Keep this account separate from the read-only application user described below.
+
+## Initialize the database
+
+Initialize a new database before deploying locally, on Vercel, or on Netlify. Web builds only generate Prisma Client and compile the app.
+
+1. Fork and clone this repository, then install dependencies before supplying database credentials:
+
+   ```sh
+   git clone https://github.com/${user_name}/nextjs-prisma-edge-example.git
+   cd nextjs-prisma-edge-example
+   npm ci --ignore-scripts
+   ```
+
+2. On a trusted machine or in a separate migration job, run setup with the setup user's direct TiDB connection string:
+
+   ```sh
+   export MIGRATE_DATABASE_URL='mysql://SETUP_USER:PASSWORD@HOST:PORT/edge_function?sslaccept=strict'
+   npm run prisma:setup
+   unset MIGRATE_DATABASE_URL
+   ```
+
+   This generates the direct database client, applies migrations, and seeds the quotes. Run it only once: seeding appends data. For later schema changes, supply the setup credential and run only `npm run prisma:migrate`. Retain migration output with the commit and operator, without logging credentials.
+
+3. Create a separate user for the application's proxy connection. After creating it with its own password, grant only the read access the app needs:
+
+   ```sql
+   GRANT SELECT ON edge_function.Quote TO 'RUNTIME_USER'@'%';
+   ```
+
+   Replace `RUNTIME_USER` with the actual TiDB username, including its cluster prefix where applicable. Check that it has no write or schema privileges through other grants or roles.
 
 ## Set up Prisma Data Proxy
 
@@ -24,8 +55,8 @@ Edge environments only support HTTP-based connections. Therefore, we can not con
 The Prisma Data Proxy is a proxy server for your database that allows you to interact with your database over HTTP, manages a connection pool, and ensures database connections are reused. It allows database access from Edge runtimes such as Vercel Edge Functions, Netlify Edge Functions and Cloudflare Workers.
 
 1. sign in to the [Prisma Data Platform](https://cloud.prisma.io/) and click **New Project**.
-2. Fill in the **Connection string** with this pattern `mysql://USER:PASSWORD@HOST:PORT/edge_function?sslaccept=strict`. You can find the connection information in your [TiDB Cloud console](https://tidbcloud.com/console/clusters).
-3. Leave the **Static IPs** as disabled because TiDB Cloud Serverless Tier is accessible from any IP address.
+2. Fill in the **Connection string** with the **read-only runtime user's** credentials, using this pattern: `mysql://RUNTIME_USER:PASSWORD@HOST:PORT/edge_function?sslaccept=strict`. Do not use the setup user's connection string.
+3. Configure [TiDB Cloud firewall rules](https://docs.pingcap.com/tidbcloud/configure-serverless-firewall-rules-for-public-endpoints/) to allow only the proxy's outbound addresses and the trusted database setup environment. Enable static outbound IPs for the proxy where supported, and verify connectivity before removing broader rules.
 4. Select a Data Proxy region that is geographically close to your TiDB Cloud cluster location. Then click **Create project**.
 
    ![prisma_project.png](img/prisma_project.png)
@@ -43,41 +74,23 @@ The Prisma Data Proxy is a proxy server for your database that allows you to int
 <details>
   <summary><h2>Deploy on Local</h2></summary>
 
-1. Fork this repository and clone it to your local machine.
-    
-    ```
-    git clone https://github.com/${user_name}/nextjs-prisma-edge-example.git
-    cd nextjs-prisma-edge-example
-    ```
+1. Complete [Initialize the database](#initialize-the-database) and [Set up Prisma Data Proxy](#set-up-prisma-data-proxy).
 
-2. Optional: Link Prisma schema to the new repository you create. Follow [Set up Prisma Data Proxy](#how-to-set-up-prisma-data-proxy) step 7.
+2. Optional: Link Prisma schema to the new repository you create. Follow [Set up Prisma Data Proxy](#set-up-prisma-data-proxy) step 7.
    
-3. Set DATABASE_URL environment variables.
+3. Set `DATABASE_URL` to the read-only Prisma Data Proxy connection string.
 
-    ```
-    export DATABASE_URL=mysql://<User>:<Password>@<Endpoint>:<Port>/edge_function?sslaccept=strict
-    ```
-
-4. apply prisma migrate and seed.
-
-    ```
-    npx prisma migrate deploy
-    npx prisma db seed
-    ```
-
-5. Replace the `DATABASE_URL` with the connection string you got from Prisma Data Platform.
-
-   ```
-   export DATABASE_URL=DATABASE_URL=prisma://aws-us-east-1.prisma-data.com/?api_key=•••••••••••••••••
+   ```sh
+   export DATABASE_URL='prisma://aws-us-east-1.prisma-data.com/?api_key=YOUR_PROXY_KEY'
    ```
 
-6. Generate Prisma Client that will connect through the Prisma Data Proxy using HTTP.
+4. Generate Prisma Client that will connect through the Prisma Data Proxy using HTTP.
 
-   ```
-   npx prisma generate --data-proxy
+   ```sh
+   npm run prisma:proxy
    ```
    
-7. Start the app.
+5. Start the app.
 
     ```
     npm run dev
@@ -94,19 +107,17 @@ The app is now running, navigate to http://localhost:3000/ in your browser to ex
 
 The Deploy button will take you through Vercel's project creation flow. Vercel will help to clone this job to your own GitHub repository and automatically deploy it.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftidbcloud%2Fnextjs-prisma-edge-example&env=MIGRATE_DATABASE_URL,DATABASE_URL&envDescription=TiDB%20Cloud%20and%20prisma%20data%20proxy%20connect%20string%20)
+First complete [Initialize the database](#initialize-the-database) and [Set up Prisma Data Proxy](#set-up-prisma-data-proxy).
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftidbcloud%2Fnextjs-prisma-edge-example&env=DATABASE_URL&envDescription=Read-only%20Prisma%20Data%20Proxy%20connection%20string)
 
 1. Click the **Deploy** button.
 2. Click **GitHub** button and authenticate GitHub account.
 3. Select your **Git Scope** and fill in **Repository Name** for your own GitHub repository.
 4. Click **Create** to create the git repository.
-5. Optional: Link Prisma schema to the new repository you create. Follow [Set up Prisma Data Proxy](#how-to-set-up-prisma-data-proxy) step 7.
-6. Enter the environment variables:
-   - `MIGRATE_DATABASE_URL`: the tidb cloud connection string.
-   - `DATABASE_URL`: the Prisma Data Proxy connection string.
+5. Optional: Link Prisma schema to the new repository you create. Follow [Set up Prisma Data Proxy](#set-up-prisma-data-proxy) step 7.
+6. Set `DATABASE_URL` to the read-only Prisma Data Proxy connection string. Do not add `MIGRATE_DATABASE_URL` to the hosting project.
 7. Click **Deploy**.
-
-![img/vercel.png](img/vercel.png)
 
 🎉 Mission Completes.
 
@@ -119,21 +130,25 @@ Now wait for the deployment to complete, then you can view your site on the defa
 
 The **Deploy to Netlify** button will take you to Netlify's deployment page. Then Netlify will help to clone this job to your own GitHub repository and automatically deploy it.
 
+First complete [Initialize the database](#initialize-the-database) and [Set up Prisma Data Proxy](#set-up-prisma-data-proxy).
+
 [![Deploy to Netlify button](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/tidbcloud/nextjs-prisma-edge-example)
 
 1. Click the **Deploy to Netlify** button.
 2. Click **Connect to GitHub** and authenticate GitHub account.
 3. Fill in **Repository name** for your own GitHub repository.
-4. Enter the environment variables:
-   - `MIGRATE_DATABASE_URL`: the tidb cloud connection string.
-   - `DATABASE_URL`: the Prisma Data Proxy connection string.
+4. Set `DATABASE_URL` to the read-only Prisma Data Proxy connection string. Do not add `MIGRATE_DATABASE_URL` to the hosting project.
 5. Click **Save & Deploy**.
-6. [Optional]: Link Prisma schema to the new repository you create. Follow [Set up Prisma Data Proxy](#how-to-set-up-prisma-data-proxy) step 7.
-
-![img/netlify.png](img/netlify.png)
+6. [Optional]: Link Prisma schema to the new repository you create. Follow [Set up Prisma Data Proxy](#set-up-prisma-data-proxy) step 7.
 
 🎉 Mission Completes.
 
 Now wait for the deployment to complete, then you can view your site on the default domain generated by Netlify.
 
 </details>
+
+## Existing deployments
+
+Before the next deployment, remove `MIGRATE_DATABASE_URL` and other setup credentials from every Vercel or Netlify environment. Repository changes do not delete saved hosting variables. Rotate previously hosted setup credentials and configure the proxy with the read-only application user.
+
+Review dependency updates manually. Require PR approval and the CI build checks through branch protection. Limit deployment and migration access to maintainers, and use a separate database and proxy connection for previews.
