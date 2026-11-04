@@ -2,5 +2,4 @@
 command = "npm run netlify-build"
 
 [template.environment]
-MIGRATE_DATABASE_URL = "TiDB Cloud connection string"
-DATABASE_URL = "Prisma Data Proxy connection string"
+DATABASE_URL = "Prisma Data Proxy connection string for the read-only database user"
